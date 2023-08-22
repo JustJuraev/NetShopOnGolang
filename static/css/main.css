@@ -1,0 +1,11 @@
+.bigdiv {
+    margin-left: 25px;
+    display: flex;
+    width: 1500px;
+    flex-wrap: wrap;
+}
+
+.smalldiv {
+    margin-top: 40px;
+    margin-left: 25px;
+}
