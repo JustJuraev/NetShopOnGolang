@@ -1,0 +1,28 @@
+.rasm
+{
+    margin-top: 10px;
+    width: 800px;
+    height: 800px;
+}
+.maindiv
+{
+    display: flex;
+    margin-left: 400px;
+}
+.kik
+{
+    margin-top: 100px;
+    margin-left: 35px;
+}
+.ism {
+    margin-top: 40px;
+}
+.narx
+{
+    margin-top: 45px;
+}
+.opisanie {
+    margin-top: 50px;
+    font-size: 20px;
+    width: 350px;
+}
