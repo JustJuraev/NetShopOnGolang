@@ -1,0 +1,33 @@
+{{define "category"}}
+
+{{template "header"}}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/main.css" />
+    <title>Document</title>
+</head>
+<body>
+    <div class="bigdiv">
+        {{range .}}
+         
+        <div class="smalldiv">
+            <div class="card" style="width: 20rem;">
+                <img class="card-img-top" src={{.Image}} alt="Тут должна была быит картина" width="300" height="300">
+                <div class="card-body">
+                    <h4 class="card-title">{{.Name}}</h4>
+                    <h5 class="card-title">Цена: {{.Price}} Сум</h5>
+                    <p class="card-text">{{.ShortDesc}}</p>
+                    <a class="btn btn-primary" href="/product/{{.Id}}">Купить</a>
+                </div>
+            </div>
+        </div>
+    
+        {{end}}
+</body>
+</html>
+
+{{end}}
