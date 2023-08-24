@@ -21,6 +21,10 @@
         <p class="opisanie">{{.LongDesc}}</p>
         </div>
     </div>
+
+    <form action="/AddToBasket/{{.Id}}" class="dkorzina" method="post">
+        <button class="btn btn-primary">Добавить в корзину</button>
+    </form>
 </body>
 </html>
 
