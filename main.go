@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	//"encoding/gob"
 	"html/template"
@@ -36,6 +37,15 @@ type BasketProduct struct {
 	CategoryId int    `json:"categoryid"`
 	Image      string `json:"image"`
 	Count      int    `json:"count"`
+}
+
+type Order struct {
+	Id       int
+	Address  string
+	Delivery bool
+	Number   string
+	CartNum  string
+	Time     time.Time
 }
 
 var produts = []Product{}
@@ -129,6 +139,7 @@ func AddToBasket(page http.ResponseWriter, r *http.Request) {
 		}
 
 	}
+
 	jsonBytes, err := json.Marshal(&basket)
 	session, _ := store.Get(r, "sesssion")
 	session.Values["basket"] = string(jsonBytes)
@@ -285,6 +296,30 @@ func index(page http.ResponseWriter, r *http.Request) {
 	tmpl.ExecuteTemplate(page, "index", data)
 }
 
+func saveOrder(page http.ResponseWriter, r *http.Request) {
+	address := r.FormValue("address")
+	number := r.FormValue("number")
+	cartnum := r.FormValue("cartnum")
+	delivery := r.FormValue("delivery")
+	today := time.Now()
+
+	connStr := "user=postgres password=123456 dbname=netshopgolang sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer db.Close()
+
+	_, err = db.Exec("INSERT INTO public.orders (address, number, cartnum, delivery, time) VALUES ($1, $2, $3, $4, $5)", address, number, cartnum, delivery, today)
+
+	http.Redirect(page, r, "/", http.StatusSeeOther)
+
+	// defer insert.Scan()
+
+}
+
 func main() {
 	connStr := "user=postgres password=123456 dbname=netshopgolang sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -301,6 +336,7 @@ func main() {
 	router.HandleFunc("/", index)
 
 	router.HandleFunc("/basket", ShowBasket)
+	router.HandleFunc("/saveOrder", saveOrder)
 	router.HandleFunc("/product/{id:[0-9]+}", GetProduct).Methods("GET")
 	router.HandleFunc("/category/{id:[0-9]+}", GetByCategoty).Methods("GET")
 	router.HandleFunc("/AddToBasket/{id:[0-9]+}", AddToBasket).Methods("POST")

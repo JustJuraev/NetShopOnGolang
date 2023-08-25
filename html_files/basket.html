@@ -32,6 +32,35 @@
         </tbody>
         {{end}}
     </table>
+
+    <div class="divform">
+    <form action="/saveOrder" method="post">
+        <div class="form-group">
+            <label>Введите адрес</label>
+            <input type="text" class="form-control" name="address">
+        </div>
+        <div class="form-group">
+            <label>Введите номер телефона</label>
+            <input type="text" class="form-control" name="number">
+        </div>
+        <div class="form-group">
+            <label>Введите номер карты</label>
+            <input type="text" class="form-control" name="cartnum">
+        </div>
+        <div class="form-group">
+            <label>Выберите опцию </label>
+            <select name="delivery" class="form-control">
+               <option>Выберите опцию</option>
+               <option value="true">Доставка</option>
+               <option value="false">Самовывоз</option>
+            </select>
+           
+        </div>
+        <div class="knopka">
+        <button class="btn btn-primary">Заказать</button>
+        </div>
+   </form>
+   </div>
 </body>
 </html>
 
