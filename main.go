@@ -48,14 +48,35 @@ type Order struct {
 	Time     time.Time
 }
 
+type ProductProperty struct {
+	Id            int
+	ProductId     int
+	PropertyName  string
+	PropertyValue string
+	CategoryId    int
+}
+
 var produts = []Product{}
 var categories = []Category{}
 var productsbycat = []Product{}
 var basket = []BasketProduct{}
+var productProperties = []ProductProperty{}
+var productPropertiesbycat = []ProductProperty{}
+var ppbyfilter = []ProductProperty{}
 
 var str string
 
 var store = sessions.NewCookieStore([]byte("basket-secret"))
+
+func containsProduct(product []Product, prd Product) bool {
+	for _, v := range product {
+		if v.Id == prd.Id {
+			return true
+		}
+	}
+
+	return false
+}
 
 func contains(product []BasketProduct, prd Product) bool {
 	for _, v := range product {
@@ -91,6 +112,81 @@ func GetProductFromBasket(product []BasketProduct, prd Product) BasketProduct {
 	}
 
 	return pr
+}
+
+func filter(page http.ResponseWriter, r *http.Request) {
+
+	r.ParseForm()
+	s := r.Form["chx"]
+
+	connStr := "user=postgres password=123456 dbname=netshopgolang sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer db.Close()
+
+	ppbyfilter = []ProductProperty{}
+	for _, v := range s {
+		row, err := db.Query("SELECT * FROM public.productproperties WHERE propertyvalue = $1", v)
+
+		for row.Next() {
+			var p ProductProperty
+			err = row.Scan(&p.Id, &p.ProductId, &p.PropertyName, &p.PropertyValue, &p.CategoryId)
+			if err != nil {
+				panic(err)
+			}
+			ppbyfilter = append(ppbyfilter, p)
+		}
+	}
+
+	var id int
+	productsbycat = []Product{}
+	for _, v := range ppbyfilter {
+		//productsbycat = []Product{}
+		row := db.QueryRow("SELECT * FROM public.products WHERE id = $1", v.ProductId)
+
+		prd := Product{}
+		err = row.Scan(&prd.Id, &prd.Name, &prd.Price, &prd.ShortDesc, &prd.LongDesc, &prd.CategoryId, &prd.Image)
+		if err != nil {
+			panic(err)
+		}
+		if containsProduct(productsbycat, prd) == false {
+			productsbycat = append(productsbycat, prd)
+			id = prd.CategoryId
+		}
+	}
+
+	row2, err := db.Query("SELECT * FROM public.productproperties WHERE categoryid = $1", id)
+
+	productPropertiesbycat = []ProductProperty{}
+	for row2.Next() {
+		var pr ProductProperty
+		err = row2.Scan(&pr.Id, &pr.ProductId, &pr.PropertyName, &pr.PropertyValue, &pr.CategoryId)
+		if err != nil {
+			panic(err)
+		}
+
+		productPropertiesbycat = append(productPropertiesbycat, pr)
+
+	}
+
+	data := struct {
+		Array1 []ProductProperty
+		Array2 []Product
+	}{
+		Array2: productsbycat,
+		Array1: productPropertiesbycat,
+	}
+
+	tmpl, err := template.ParseFiles("html_files/category.html", "html_files/header.html")
+	if err != nil {
+		panic(err)
+	}
+	tmpl.ExecuteTemplate(page, "category", data)
+
 }
 
 func AddToBasket(page http.ResponseWriter, r *http.Request) {
@@ -202,11 +298,33 @@ func GetByCategoty(page http.ResponseWriter, r *http.Request) {
 
 	}
 
+	row2, err := db.Query("SELECT * FROM public.productproperties WHERE categoryid = $1", id)
+
+	productPropertiesbycat = []ProductProperty{}
+	for row2.Next() {
+		var pr ProductProperty
+		err = row2.Scan(&pr.Id, &pr.ProductId, &pr.PropertyName, &pr.PropertyValue, &pr.CategoryId)
+		if err != nil {
+			panic(err)
+		}
+
+		productPropertiesbycat = append(productPropertiesbycat, pr)
+
+	}
+
+	data := struct {
+		Array1 []ProductProperty
+		Array2 []Product
+	}{
+		Array2: productsbycat,
+		Array1: productPropertiesbycat,
+	}
+
 	tmpl, err := template.ParseFiles("html_files/category.html", "html_files/header.html")
 	if err != nil {
 		panic(err)
 	}
-	tmpl.ExecuteTemplate(page, "category", productsbycat)
+	tmpl.ExecuteTemplate(page, "category", data)
 }
 
 func GetProduct(page http.ResponseWriter, r *http.Request) {
@@ -227,15 +345,40 @@ func GetProduct(page http.ResponseWriter, r *http.Request) {
 	prd := Product{}
 	err = row.Scan(&prd.Id, &prd.Name, &prd.Price, &prd.ShortDesc, &prd.LongDesc, &prd.CategoryId, &prd.Image)
 	if err != nil {
-		http.Error(page, http.StatusText(404), http.StatusNotFound)
-		fmt.Println(err)
-	} else {
-		tmpl, err := template.ParseFiles("html_files/product.html", "html_files/header.html")
+		panic(err)
+	}
+
+	res2, err := db.Query("SELECT * FROM public.productproperties WHERE productid = $1", id)
+
+	if err != nil {
+		panic(err)
+	}
+
+	productProperties = []ProductProperty{}
+	for res2.Next() {
+		var pr ProductProperty
+		err = res2.Scan(&pr.Id, &pr.ProductId, &pr.PropertyName, &pr.PropertyValue, &pr.CategoryId)
+
 		if err != nil {
 			panic(err)
 		}
-		tmpl.ExecuteTemplate(page, "product", prd)
+
+		productProperties = append(productProperties, pr)
 	}
+
+	data := struct {
+		Product Product
+		Array   []ProductProperty
+	}{
+		Array:   productProperties,
+		Product: prd,
+	}
+
+	tmpl, err := template.ParseFiles("html_files/product.html", "html_files/header.html")
+	if err != nil {
+		panic(err)
+	}
+	tmpl.ExecuteTemplate(page, "product", data)
 }
 
 func index(page http.ResponseWriter, r *http.Request) {
@@ -316,8 +459,6 @@ func saveOrder(page http.ResponseWriter, r *http.Request) {
 
 	http.Redirect(page, r, "/", http.StatusSeeOther)
 
-	// defer insert.Scan()
-
 }
 
 func main() {
@@ -337,6 +478,7 @@ func main() {
 
 	router.HandleFunc("/basket", ShowBasket)
 	router.HandleFunc("/saveOrder", saveOrder)
+	router.HandleFunc("/Filter", filter)
 	router.HandleFunc("/product/{id:[0-9]+}", GetProduct).Methods("GET")
 	router.HandleFunc("/category/{id:[0-9]+}", GetByCategoty).Methods("GET")
 	router.HandleFunc("/AddToBasket/{id:[0-9]+}", AddToBasket).Methods("POST")

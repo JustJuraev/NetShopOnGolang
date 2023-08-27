@@ -22,10 +22,16 @@
     margin-top: 45px;
 }
 .opisanie {
-    margin-top: 50px;
-    font-size: 20px;
-    width: 350px;
+    
+    font-size: 30px;
+    width: 1500px;
+    margin-left: 100px;
 }
 .dkorzina {
   margin-left: 500px;
+}
+.xarak {
+    font-size: 20px;
+    margin-top: 20px;
+
 }

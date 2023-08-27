@@ -14,15 +14,21 @@
 
 
    <div class="maindiv">
-    <img class="rasm" src={{.Image}}>
+    <img class="rasm" src={{.Product.Image}}>
     <div class="kik">
-        <h2 class="ism">{{.Name}}</h2>
-        <h3 class="narx">Цена: {{.Price}} Сум</h3>
-        <p class="opisanie">{{.LongDesc}}</p>
+        <h2 class="ism">{{.Product.Name}}</h2>
+        <h3 class="narx">Цена: {{.Product.Price}} Сум</h3>
+       {{range .Array}}
+       <p class="xarak">{{.PropertyName}} ----------- {{.PropertyValue}}</p>
+       {{else}}
+       <p class="xarak">Характеристики пока не доступны для этого товара</p>
+       {{end}}
         </div>
     </div>
 
-    <form action="/AddToBasket/{{.Id}}" class="dkorzina" method="post">
+    <h1 class="opisanie">{{.Product.LongDesc}}</h1>
+
+    <form action="/AddToBasket/{{.Product.Id}}" class="dkorzina" method="post">
         <button class="btn btn-primary">Добавить в корзину</button>
     </form>
 </body>

@@ -32,3 +32,9 @@
 .knopka {
     margin-top: 20px;
 }
+.maindiv2 {
+    display: flex;
+}
+.filterdiv {
+    margin-top: 30px;
+}
