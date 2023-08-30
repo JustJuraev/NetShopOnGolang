@@ -2,18 +2,24 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	//"encoding/gob"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"html/template"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	_ "github.com/lib/pq"
 )
+
+type app struct {
+}
 
 type Product struct {
 	Id         int    `json:"id"`
@@ -46,6 +52,7 @@ type Order struct {
 	Number   string
 	CartNum  string
 	Time     time.Time
+	UserId   int
 }
 
 type ProductProperty struct {
@@ -54,6 +61,21 @@ type ProductProperty struct {
 	PropertyName  string
 	PropertyValue string
 	CategoryId    int
+}
+
+type User struct {
+	Id       int
+	Name     string
+	Password string
+	Number   string
+}
+
+type OrderItem struct {
+	Id           int
+	ProductId    int
+	ProductName  string
+	ProductCount int
+	OrderId      int
 }
 
 var produts = []Product{}
@@ -65,8 +87,10 @@ var productPropertiesbycat = []ProductProperty{}
 var ppbyfilter = []ProductProperty{}
 
 var str string
+var flag bool
 
 var store = sessions.NewCookieStore([]byte("basket-secret"))
+var cache = map[string]User{}
 
 func containsProduct(product []Product, prd Product) bool {
 	for _, v := range product {
@@ -251,7 +275,13 @@ func ShowBasket(page http.ResponseWriter, r *http.Request) {
 	untyped, ok := session.Values["basket"]
 
 	if !ok {
-		panic(ok)
+		tmpl, err := template.ParseFiles("html_files/basket.html", "html_files/header.html")
+		if err != nil {
+			panic(err)
+		}
+		basket = []BasketProduct{}
+		tmpl.ExecuteTemplate(page, "basket", basket)
+		return
 	}
 
 	basket, ok := untyped.(string)
@@ -268,6 +298,7 @@ func ShowBasket(page http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+	//fmt.Println(session.Values["basket"])
 	tmpl.ExecuteTemplate(page, "basket", basketP)
 }
 
@@ -381,6 +412,16 @@ func GetProduct(page http.ResponseWriter, r *http.Request) {
 	tmpl.ExecuteTemplate(page, "product", data)
 }
 
+func LogOut(page http.ResponseWriter, r *http.Request) {
+	for _, v := range r.Cookies() {
+		c := http.Cookie{
+			Name:   v.Name,
+			MaxAge: -1}
+		http.SetCookie(page, &c)
+	}
+	http.Redirect(page, r, "/", http.StatusSeeOther)
+}
+
 func index(page http.ResponseWriter, r *http.Request) {
 	connStr := "user=postgres password=123456 dbname=netshopgolang sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -439,6 +480,127 @@ func index(page http.ResponseWriter, r *http.Request) {
 	tmpl.ExecuteTemplate(page, "index", data)
 }
 
+func readCookie(name string, r *http.Request) (value string, err error) {
+	if name == "" {
+		return
+	}
+	cookie, err := r.Cookie(name)
+	if err != nil {
+		return value, err
+	}
+	str := cookie.Value
+	value, _ = url.QueryUnescape(str)
+	return value, err
+}
+
+func LoginPage(page http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFiles("html_files/login.html", "html_files/header.html")
+	if err != nil {
+		panic(err)
+	}
+	tmpl.ExecuteTemplate(page, "login", nil)
+}
+
+func LoginCheck(page http.ResponseWriter, r *http.Request) {
+	login := r.FormValue("login")
+	password := r.FormValue("password")
+
+	//	fmt.Println(login)
+	//	fmt.Println(password)
+
+	if login == "" || password == "" {
+		tmpl, err := template.ParseFiles("html_files/login.html", "html_files/header.html")
+		if err != nil {
+			panic(err)
+		}
+		tmpl.ExecuteTemplate(page, "login", "Имя или пароль не может быть пустым")
+		return
+	}
+	connStr := "user=postgres password=123456 dbname=netshopgolang sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+
+	if err != nil {
+		panic(err)
+	}
+
+	hash := md5.Sum([]byte(password))
+	hashedPass := hex.EncodeToString(hash[:])
+
+	defer db.Close()
+	res := db.QueryRow("SELECT * FROM public.users WHERE name = $1 AND password = $2", login, hashedPass)
+	user := User{}
+	err = res.Scan(&user.Id, &user.Name, &user.Password)
+	if err != nil {
+		tmpl, err := template.ParseFiles("html_files/login.html", "html_files/header.html")
+		if err != nil {
+			panic(err)
+		}
+		tmpl.ExecuteTemplate(page, "login", "неверный логин или пароль")
+		return
+
+	}
+
+	token := login
+	hashToken := md5.Sum([]byte(token))
+	hashedToken := hex.EncodeToString(hashToken[:])
+	cache[hashedToken] = user
+	livingTime := 120 * time.Hour
+	expiration := time.Now().Add(livingTime)
+
+	cookie := http.Cookie{Name: "token", Value: url.QueryEscape(hashedToken), Expires: expiration}
+	http.SetCookie(page, &cookie)
+	flag = true
+	http.Redirect(page, r, "/", http.StatusSeeOther)
+}
+
+func RegisterPage(page http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFiles("html_files/register.html", "html_files/header.html")
+	if err != nil {
+		panic(err)
+	}
+	tmpl.ExecuteTemplate(page, "register", nil)
+}
+
+func RegisterCheck(page http.ResponseWriter, r *http.Request) {
+	login := r.FormValue("login")
+	password := r.FormValue("password")
+	confirmpassword := r.FormValue("confirmpassword")
+
+	if login == "" || password == "" || confirmpassword == "" {
+		tmpl, err := template.ParseFiles("html_files/register.html", "html_files/header.html")
+		if err != nil {
+			panic(err)
+		}
+		tmpl.ExecuteTemplate(page, "register", "все поля должны быть заполнены!")
+		return
+	}
+
+	if password != confirmpassword {
+		tmpl, err := template.ParseFiles("html_files/register.html", "html_files/header.html")
+		if err != nil {
+			panic(err)
+		}
+		tmpl.ExecuteTemplate(page, "register", "пароли не совпадают")
+		return
+	}
+
+	hash := md5.Sum([]byte(password))
+	hashedPass := hex.EncodeToString(hash[:])
+
+	connStr := "user=postgres password=123456 dbname=netshopgolang sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer db.Close()
+
+	_, err = db.Exec("INSERT INTO public.users (name, password) VALUES ($1, $2)", login, hashedPass)
+
+	http.Redirect(page, r, "/login", http.StatusSeeOther)
+}
+
 func saveOrder(page http.ResponseWriter, r *http.Request) {
 	address := r.FormValue("address")
 	number := r.FormValue("number")
@@ -455,8 +617,29 @@ func saveOrder(page http.ResponseWriter, r *http.Request) {
 
 	defer db.Close()
 
-	_, err = db.Exec("INSERT INTO public.orders (address, number, cartnum, delivery, time) VALUES ($1, $2, $3, $4, $5)", address, number, cartnum, delivery, today)
+	cookie, err := readCookie("token", r)
 
+	if err != nil {
+		panic(err)
+	}
+	us := cache[cookie]
+
+	_, err = db.Exec("INSERT INTO public.orders (address, number, cartnum, delivery, time, userid) VALUES ($1, $2, $3, $4, $5, $6)", address, number, cartnum, delivery, today, us.Id)
+	row := db.QueryRow("SELECT * FROM public.orders WHERE time = $1", today)
+	//fmt.Println(id)
+	ord := Order{}
+	err = row.Scan(&ord.Id, &ord.Address, &ord.Delivery, &ord.Number, &ord.CartNum, &ord.Time, &ord.UserId)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, v := range basket {
+		_, err = db.Exec("INSERT INTO public.orderitems (productid, productname, productcount, orderid) VALUES ($1, $2, $3, $4)", v.Id, v.Name, v.Count, ord.Id)
+	}
+
+	session, _ := store.Get(r, "sesssion")
+	session.Options.MaxAge = -1
+	session.Save(r, page)
 	http.Redirect(page, r, "/", http.StatusSeeOther)
 
 }
@@ -479,6 +662,11 @@ func main() {
 	router.HandleFunc("/basket", ShowBasket)
 	router.HandleFunc("/saveOrder", saveOrder)
 	router.HandleFunc("/Filter", filter)
+	router.HandleFunc("/login", LoginPage)
+	router.HandleFunc("/login_check", LoginCheck)
+	router.HandleFunc("/logout", LogOut)
+	router.HandleFunc("/register", RegisterPage)
+	router.HandleFunc("/register_check", RegisterCheck)
 	router.HandleFunc("/product/{id:[0-9]+}", GetProduct).Methods("GET")
 	router.HandleFunc("/category/{id:[0-9]+}", GetByCategoty).Methods("GET")
 	router.HandleFunc("/AddToBasket/{id:[0-9]+}", AddToBasket).Methods("POST")

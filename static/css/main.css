@@ -38,3 +38,10 @@
 .filterdiv {
     margin-top: 30px;
 }
+.loginbutton {
+    margin-top: 20px;
+}
+.oshibka {
+    text-align: center;
+    color: red;
+}
